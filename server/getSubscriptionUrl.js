@@ -1,9 +1,11 @@
+import { redirectQueryString } from "koa-shopify-auth-cookieless";
 const getSubscriptionUrl = async (ctx, accessToken, shop) => {
+  const redirectQuery = redirectQueryString(ctx);
   const query = JSON.stringify({
     query: `mutation {
       appSubscriptionCreate(
           name: "Super Duper Plan"
-          returnUrl: "${process.env.HOST}"
+          returnUrl: "${process.env.HOST}/?${redirectQuery}"
           test: true
           lineItems: [
           {
