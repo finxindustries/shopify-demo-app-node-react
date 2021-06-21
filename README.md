@@ -17,3 +17,4 @@ If you plan to use this completed app, then make sure that you first complete th
 8. [Authenticate and test your app.](https://developers.shopify.com/tutorials/build-a-shopify-app-with-node-and-react/embed-your-app-in-shopify#authenticate-and-test)
 9. [Set up your app navigation.](https://developers.shopify.com/tutorials/build-a-shopify-app-with-node-and-react/build-your-user-interface-with-polaris#set-up-your-app-navigation)
 10. [Add your ngrok url as Host.](https://developers.shopify.com/tutorials/build-a-shopify-app-with-node-and-react/charge-a-fee-using-the-billing-api#set-up)
+11. Run migrations: `npm run migrations`

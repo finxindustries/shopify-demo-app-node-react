@@ -22,7 +22,7 @@ const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
-const { 
+const {
   SHOPIFY_API_SECRET_KEY,
   SHOPIFY_API_KEY,
   HOST,
@@ -37,7 +37,7 @@ app.prepare().then(() => {
     createShopifyAuth({
       apiKey: SHOPIFY_API_KEY,
       secret: SHOPIFY_API_SECRET_KEY,
-      scopes: ['read_products', 'write_products'],
+      scopes: ['read_products', 'write_products'], //FIXME: use env SCOPES
       async afterAuth(ctx) {
         const shopKey = ctx.state.shopify.shop;
         const accessToken = ctx.state.shopify.accessToken;
@@ -80,7 +80,7 @@ app.prepare().then(() => {
   router.post('/webhooks/products/create', webhook, (ctx) => {
     console.log('received webhook: ', ctx.state.webhook);
   });
-  
+
   router.post("/graphql", async (ctx, next) => {
     const bearer = ctx.request.header.authorization;
     const secret = process.env.SHOPIFY_API_SECRET_KEY;
@@ -116,10 +116,10 @@ app.prepare().then(() => {
     ctx.respond = false;
     ctx.res.statusCode = 200;
   });
-  
+
   server.use(router.allowedMethods());
   server.use(router.routes());
- 
+
   server.listen(port, () => {
     console.log(`> Ready on http://localhost:${port}`);
   });
