@@ -1,54 +1,47 @@
-import { redirectQueryString } from "koa-shopify-auth-cookieless";
-const getSubscriptionUrl = async (ctx, accessToken, shop) => {
-  const redirectQuery = redirectQueryString(ctx);
-  const query = JSON.stringify({
-    query: `mutation {
-      appSubscriptionCreate(
-          name: "Super Duper Plan"
-          returnUrl: "${process.env.HOST}/?${redirectQuery}"
-          test: true
-          lineItems: [
-          {
-            plan: {
-              appUsagePricingDetails: {
-                  cappedAmount: { amount: 10, currencyCode: USD }
-                  terms: "$1 for 1000 emails"
-              }
+const { default: Shopify } = require('@shopify/shopify-api');
+
+const getSubscriptionUrl = async (accessToken, shop, returnUrl) => {
+  const query = `mutation {
+    appSubscriptionCreate(
+      name: "Super Duper Plan"
+      returnUrl: "${returnUrl}"
+      test: true
+      lineItems: [
+        {
+          plan: {
+            appUsagePricingDetails: {
+              cappedAmount: { amount: 10, currencyCode: USD }
+              terms: "$1 for 1000 emails"
             }
           }
-          {
-            plan: {
-              appRecurringPricingDetails: {
-                  price: { amount: 10, currencyCode: USD }
-              }
-            }
-          }
-          ]
-        ) {
-            userErrors {
-              field
-              message
-            }
-            confirmationUrl
-            appSubscription {
-              id
-            }
         }
-    }`
+        {
+          plan: {
+            appRecurringPricingDetails: {
+              price: { amount: 10, currencyCode: USD }
+            }
+          }
+        }
+      ]
+    )
+    {
+      userErrors {
+        field
+        message
+      }
+      confirmationUrl
+      appSubscription {
+        id
+      }
+    }
+  }`;
+
+  const client = new Shopify.Clients.Graphql(shop, accessToken);
+  const response = await client.query({
+    data: query,
   });
 
-  const response = await fetch(`https://${shop}/admin/api/2020-10/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      "X-Shopify-Access-Token": accessToken,
-    },
-    body: query
-  })
-
-  const responseJson = await response.json();
-  const confirmationUrl = responseJson.data.appSubscriptionCreate.confirmationUrl
-  return ctx.redirect(confirmationUrl)
+  return response.body.data.appSubscriptionCreate.confirmationUrl;
 };
 
 module.exports = getSubscriptionUrl;

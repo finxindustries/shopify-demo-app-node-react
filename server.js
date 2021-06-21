@@ -1,68 +1,53 @@
-import "@babel/polyfill";
-import dotenv from "dotenv";
+require('isomorphic-fetch');
+const dotenv = require('dotenv');
+const Koa = require('koa');
+const next = require('next');
+const { default: createShopifyAuth } = require('@shopify/koa-shopify-auth');
+const { verifyRequest } = require('@shopify/koa-shopify-auth');
+const { default: Shopify, ApiVersion } = require('@shopify/shopify-api');
+const Router = require('koa-router');
+const getSubscriptionUrl = require('./server/getSubscriptionUrl');
+
 dotenv.config();
-import "isomorphic-fetch";
-import {
-  createShopifyAuth,
-  verifyToken,
-  getQueryKey,
-} from "koa-shopify-auth-cookieless";
-import { graphQLProxy, ApiVersion } from "koa-shopify-graphql-proxy-cookieless";
-import Koa from "koa";
-import next from "next";
-import Router from "koa-router";
-import { receiveWebhook, registerWebhook } from '@shopify/koa-shopify-webhooks';
-import getSubscriptionUrl from './server/getSubscriptionUrl';
-import isVerified from "shopify-jwt-auth-verify";
-import db from './models';
-const jwt = require("jsonwebtoken");
+
+Shopify.Context.initialize({
+  API_KEY: process.env.SHOPIFY_API_KEY,
+  API_SECRET_KEY: process.env.SHOPIFY_API_SECRET,
+  SCOPES: process.env.SHOPIFY_API_SCOPES.split(","),
+  HOST_NAME: process.env.SHOPIFY_APP_URL.replace(/https:\/\//, ""),
+  API_VERSION: ApiVersion.October20,
+  IS_EMBEDDED_APP: true,
+  SESSION_STORAGE: new Shopify.Session.MemorySessionStorage(),
+});
 
 const port = parseInt(process.env.PORT, 10) || 3000;
 const dev = process.env.NODE_ENV !== 'production';
-const app = next({ dev });
+const app = next({ dev: dev });
 const handle = app.getRequestHandler();
 
-const {
-  SHOPIFY_API_SECRET_KEY,
-  SHOPIFY_API_KEY,
-  HOST,
-} = process.env;
+const ACTIVE_SHOPIFY_SHOPS = {};
 
 app.prepare().then(() => {
   const server = new Koa();
   const router = new Router();
-  server.keys = [SHOPIFY_API_SECRET_KEY];
+  server.keys = [Shopify.Context.API_SECRET_KEY];
 
   server.use(
     createShopifyAuth({
-      apiKey: SHOPIFY_API_KEY,
-      secret: SHOPIFY_API_SECRET_KEY,
-      scopes: ['read_products', 'write_products'], //FIXME: use env SCOPES
       async afterAuth(ctx) {
-        const shopKey = ctx.state.shopify.shop;
-        const accessToken = ctx.state.shopify.accessToken;
-        await db.Shop.findOrCreate({
-          where: { shop: shopKey },
-          defaults: {
-            accessToken: accessToken
-          }
-        }).then(([newShop, created]) => {
-          if (created) {
-            console.log("created.", shopKey, accessToken);
-          } else {
-            newShop.update({
-              accessToken: accessToken
-            }).then(() => {
-              console.log("updated.", shopKey, accessToken);
-            });
-          }
-        });
-        const registration = await registerWebhook({
-          address: `${HOST}/webhooks/products/create`,
-          topic: 'PRODUCTS_CREATE',
-          accessToken: accessToken,
-          shop: shopKey,
-          apiVersion: ApiVersion.October20
+        const { shop, scope, accessToken } = ctx.state.shopify;
+        ACTIVE_SHOPIFY_SHOPS[shop] = scope;
+
+        const registration = await Shopify.Webhooks.Registry.register({
+          shop,
+          accessToken,
+          path: '/webhooks',
+          topic: 'APP_UNINSTALLED',
+          apiVersion: ApiVersion.October20,
+          webhookHandler: (_topic, shop, _body) => {
+            console.log('App uninstalled');
+            delete ACTIVE_SHOPIFY_SHOPS[shop];
+          },
         });
 
         if (registration.success) {
@@ -70,52 +55,42 @@ app.prepare().then(() => {
         } else {
           console.log('Failed to register webhook', registration.result);
         }
-        await getSubscriptionUrl(ctx, accessToken, shopKey);
-      }
-    })
+
+        const returnUrl = `https://${Shopify.Context.HOST_NAME}/?shop=${shop}`;
+        const subscriptionUrl = await getSubscriptionUrl(accessToken, shop, returnUrl);
+        ctx.redirect(subscriptionUrl);
+      },
+    }),
   );
 
-  const webhook = receiveWebhook({ secret: SHOPIFY_API_SECRET_KEY });
-
-  router.post('/webhooks/products/create', webhook, (ctx) => {
-    console.log('received webhook: ', ctx.state.webhook);
+  router.post("/graphql", verifyRequest({ returnHeader: true }), async (ctx, next) => {
+    await Shopify.Utils.graphqlProxy(ctx.req, ctx.res);
   });
 
-  router.post("/graphql", async (ctx, next) => {
-    const bearer = ctx.request.header.authorization;
-    const secret = process.env.SHOPIFY_API_SECRET_KEY;
-    const valid = isVerified(bearer, secret);
-    if (valid) {
-      const token = bearer.split(" ")[1];
-      const decoded = jwt.decode(token);
-      const shop = new URL(decoded.dest).host;
-      const dbShop = await db.Shop.findOne({ where: { shop: shop } });
-      if (dbShop) {
-        const accessToken = dbShop.accessToken;
-        const proxy = graphQLProxy({
-          shop: shop,
-          password: accessToken,
-          version: ApiVersion.October20,
-        });
-        await proxy(ctx, next);
-      } else {
-        ctx.res.statusCode = 403;
-      }
-    }
-  });
-  router.get('/', async (ctx, next) => {
-    const shop = getQueryKey(ctx, "shop");
-    const dbShop = await db.Shop.findOne({ where: { shop: shop } });
-    const token = dbShop && dbShop.accessToken;
-    ctx.state = { shopify: { shop: shop, accessToken: token } };
-    await verifyToken(ctx, next);
+  router.post('/webhooks', async (ctx) => {
+    await Shopify.Webhooks.Registry.process(ctx.req, ctx.res);
+    console.log(`Webhook processed with status code 200`);
   });
 
-  router.get('/(.*)', async (ctx) => {
+  const handleRequest = async (ctx) => {
     await handle(ctx.req, ctx.res);
     ctx.respond = false;
     ctx.res.statusCode = 200;
+  };
+
+  router.get("/", async (ctx) => {
+    const shop = ctx.query.shop;
+
+    if (ACTIVE_SHOPIFY_SHOPS[shop] === undefined) {
+      ctx.redirect(`/auth?shop=${shop}`);
+    } else {
+      await handleRequest(ctx);
+    }
   });
+
+  router.get("(/_next/static/.*)", handleRequest);
+  router.get("/_next/webpack-hmr", handleRequest);
+  router.get("(.*)", verifyRequest(), handleRequest);
 
   server.use(router.allowedMethods());
   server.use(router.routes());

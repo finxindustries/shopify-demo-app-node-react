@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   Banner,
   Card,
@@ -16,17 +17,17 @@ import gql from 'graphql-tag';
 import { Mutation } from 'react-apollo';
 
 const UPDATE_PRICE = gql`
- mutation productVariantUpdate($input: ProductVariantInput!) {
-   productVariantUpdate(input: $input) {
-     product {
-       title
-     }
-     productVariant {
-       id
-       price
-     }
-   }
- }
+  mutation productVariantUpdate($input: ProductVariantInput!) {
+    productVariantUpdate(input: $input) {
+      product {
+        title
+      }
+      productVariant {
+        id
+        price
+      }
+    }
+  }
 `;
 
 class EditProduct extends React.Component {
@@ -43,11 +44,12 @@ class EditProduct extends React.Component {
 
   render() {
     const { name, price, discount, variantId } = this.state;
+
     return (
       <Mutation
         mutation={UPDATE_PRICE}
       >
-        {(handleSubmit, { error, data }) => {
+        {(handleSubmit, {error, data}) => {
           const showError = error && (
             <Banner status="critical">{error.message}</Banner>
           );
@@ -57,6 +59,7 @@ class EditProduct extends React.Component {
               onDismiss={() => this.setState({ showToast: false })}
             />
           );
+
           return (
             <Frame>
               <Page>
@@ -74,7 +77,7 @@ class EditProduct extends React.Component {
                             <TextField
                               prefix="$"
                               value={price}
-                              disabled
+                              disabled={true}
                               label="Original price"
                               type="price"
                             />
@@ -88,7 +91,7 @@ class EditProduct extends React.Component {
                           </FormLayout.Group>
                           <p>
                             This sale price will expire in two weeks
-                        </p>
+                          </p>
                         </FormLayout>
                       </Card>
                       <PageActions
@@ -103,13 +106,13 @@ class EditProduct extends React.Component {
                               handleSubmit({
                                 variables: { input: productVariableInput },
                               });
-                            },
-                          },
+                            }
+                          }
                         ]}
                         secondaryActions={[
                           {
-                            content: 'Remove discount',
-                          },
+                            content: 'Remove discount'
+                          }
                         ]}
                       />
                     </Form>

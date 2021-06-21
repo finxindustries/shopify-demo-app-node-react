@@ -1,3 +1,4 @@
+import React from 'react';
 import gql from 'graphql-tag';
 import { Query } from 'react-apollo';
 import {
@@ -54,19 +55,20 @@ class ResourceListWithProducts extends React.Component {
     };
 
     const twoWeeksFromNow = new Date(Date.now() + 12096e5).toDateString();
+
     return (
       <Query query={GET_PRODUCTS_BY_ID} variables={{ ids: store.get('ids') }}>
         {({ data, loading, error }) => {
-          if (loading) { return <div>Loading…</div>; }
-          if (error) { return <div>{error.message}</div>; }
-          console.log(data);
+          if (loading) return <div>Loading…</div>;
+          if (error) return <div>{error.message}</div>;
+
           return (
             <Card>
               <ResourceList
                 showHeader
                 resourceName={{ singular: 'Product', plural: 'Products' }}
                 items={data.nodes}
-                renderItem={(item) => {
+                renderItem={item => {
                   const media = (
                     <Thumbnail
                       source={
@@ -90,8 +92,7 @@ class ResourceListWithProducts extends React.Component {
                       onClick={() => {
                         store.set('item', item);
                         redirectToProduct();
-                      }
-                      }
+                      }}
                     >
                       <Stack>
                         <Stack.Item fill>

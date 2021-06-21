@@ -1,6 +1,3 @@
-# Sqlite3 DB file
-*.sqlite3
-
 # Environment Configuration
 .env
 

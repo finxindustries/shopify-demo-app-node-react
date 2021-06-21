@@ -1,3 +1,4 @@
+import React from 'react';
 import { EmptyState, Layout, Page } from '@shopify/polaris';
 import { ResourcePicker, TitleBar } from '@shopify/app-bridge-react';
 import store from 'store-js';
@@ -9,14 +10,16 @@ class Index extends React.Component {
   state = { open: false };
   render() {
     const emptyState = !store.get('ids');
+
     return (
       <Page>
         <TitleBar
           title="Sample App"
           primaryAction={{
-          content: 'Select products',
-          onAction: () => this.setState({ open: true }),
-        }} />
+            content: 'Select products',
+            onAction: () => this.setState({ open: true }),
+          }}
+        />
         <ResourcePicker
           resourceType="Product"
           showVariants={false}
@@ -38,12 +41,11 @@ class Index extends React.Component {
             </EmptyState>
           </Layout>
         ) : (
-            <ResourceListWithProducts />
-          )}
+          <ResourceListWithProducts />
+        )}
       </Page>
     );
   }
-
   handleSelection = (resources) => {
     const idsFromResources = resources.selection.map((product) => product.id);
     this.setState({ open: false });
